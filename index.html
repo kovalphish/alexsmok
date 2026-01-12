@@ -92,6 +92,51 @@
             transform: scale(1.05);
         }
 
+        /* Категории сверху */
+        .categories {
+            background-color: white;
+            padding: 1.5rem 0;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 80px;
+            z-index: 99;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .categories-container {
+            display: flex;
+            overflow-x: auto;
+            gap: 10px;
+            padding: 0 5px;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .categories-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .category-btn {
+            padding: 0.6rem 1.5rem;
+            background-color: var(--light-color);
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: var(--transition);
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .category-btn:hover {
+            background-color: #ddd;
+        }
+
+        .category-btn.active {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
         /* Модальные окна */
         .modal-overlay {
             position: fixed;
@@ -247,7 +292,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 2rem 0;
+            margin: 2rem 0 1rem 0;
         }
 
         .products-header h1 {
@@ -397,6 +442,11 @@
                 grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
                 gap: 1.5rem;
             }
+            
+            .category-btn {
+                padding: 0.5rem 1.2rem;
+                font-size: 0.9rem;
+            }
         }
 
         @media (max-width: 480px) {
@@ -406,6 +456,10 @@
             
             .modal {
                 padding: 1.5rem;
+            }
+            
+            .categories {
+                top: 70px;
             }
         }
     </style>
@@ -426,6 +480,15 @@
             </div>
         </div>
     </header>
+
+    <!-- Категории сверху -->
+    <section class="categories">
+        <div class="container">
+            <div class="categories-container" id="categoriesContainer">
+                <!-- Категории будут загружаться здесь -->
+            </div>
+        </div>
+    </section>
 
     <!-- Модальное окно авторизации -->
     <div class="modal-overlay" id="loginModal">
@@ -449,7 +512,7 @@
     <main class="container">
         <!-- Заголовок и информация о товарах -->
         <div class="products-header">
-            <h1>Наши товары</h1>
+            <h1 id="categoryTitle">Все товары</h1>
             <p id="productsCount">Загрузка...</p>
         </div>
 
@@ -485,8 +548,8 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="productCategory">Категория</label>
-                    <input type="text" id="productCategory" class="form-control" placeholder="Например: Одноразовые вейпы">
+                    <label for="productCategory">Категория *</label>
+                    <input type="text" id="productCategory" class="form-control" placeholder="Например: Одноразовые вейпы" required>
                 </div>
                 
                 <div class="form-group">
@@ -553,7 +616,12 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             // Инициализируем Firebase
-            firebase.initializeApp(firebaseConfig);
+            try {
+                firebase.initializeApp(firebaseConfig);
+            } catch (error) {
+                console.log('Firebase уже инициализирован');
+            }
+            
             const db = firebase.database();
             const storage = firebase.storage();
             
@@ -573,6 +641,8 @@
             const modalTitle = document.getElementById('modalTitle');
             const productsGrid = document.getElementById('productsGrid');
             const productsCount = document.getElementById('productsCount');
+            const categoryTitle = document.getElementById('categoryTitle');
+            const categoriesContainer = document.getElementById('categoriesContainer');
             const notification = document.getElementById('notification');
             
             // Форма товара
@@ -598,10 +668,12 @@
             // Данные
             let products = [];
             let variants = [];
+            let categories = new Set(); // Храним уникальные категории
             let isAdmin = false;
             let editingProductId = null;
             let currentImageFile = null;
             let uploadedImageUrl = '';
+            let currentCategory = 'all';
             
             // Пароль администратора (ИЗМЕНИ НА СВОЙ!)
             const ADMIN_PASSWORD = "123456"; // ⚠️ ПОМЕНЯЙ ЭТОТ ПАРОЛЬ!
@@ -614,6 +686,46 @@
                 setTimeout(() => notification.style.display = 'none', 3000);
             }
             
+            // Обновление категорий из товаров
+            function updateCategoriesFromProducts() {
+                categories.clear();
+                products.forEach(product => {
+                    if (product.category) {
+                        categories.add(product.category);
+                    }
+                });
+                renderCategories();
+            }
+            
+            // Отображение категорий сверху
+            function renderCategories() {
+                categoriesContainer.innerHTML = '';
+                
+                // Кнопка "Все товары"
+                const allBtn = document.createElement('button');
+                allBtn.className = `category-btn ${currentCategory === 'all' ? 'active' : ''}`;
+                allBtn.textContent = 'Все товары';
+                allBtn.onclick = () => {
+                    currentCategory = 'all';
+                    renderCategories();
+                    renderProducts();
+                };
+                categoriesContainer.appendChild(allBtn);
+                
+                // Кнопки категорий
+                Array.from(categories).sort().forEach(category => {
+                    const btn = document.createElement('button');
+                    btn.className = `category-btn ${currentCategory === category ? 'active' : ''}`;
+                    btn.textContent = category;
+                    btn.onclick = () => {
+                        currentCategory = category;
+                        renderCategories();
+                        renderProducts();
+                    };
+                    categoriesContainer.appendChild(btn);
+                });
+            }
+            
             // Загрузка товаров
             function loadProducts() {
                 db.ref('products').on('value', (snapshot) => {
@@ -624,11 +736,19 @@
                             ...data[key]
                         }));
                         console.log('Товары загружены:', products.length);
+                        
+                        // Обновляем категории
+                        updateCategoriesFromProducts();
                     } else {
                         products = [];
+                        categories.clear();
+                        renderCategories();
                     }
                     
                     renderProducts();
+                }, (error) => {
+                    console.error('Ошибка загрузки товаров:', error);
+                    showNotification('Ошибка загрузки товаров', 'error');
                 });
             }
             
@@ -636,22 +756,31 @@
             function renderProducts() {
                 productsGrid.innerHTML = '';
                 
+                // Фильтрация по категории
+                let filteredProducts = products;
+                if (currentCategory !== 'all') {
+                    filteredProducts = products.filter(p => p.category === currentCategory);
+                }
+                
                 // Сортировка по дате (новые первыми)
-                products.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                filteredProducts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
                 
-                productsCount.textContent = `Товаров: ${products.length}`;
+                // Обновляем заголовок
+                categoryTitle.textContent = currentCategory === 'all' ? 'Все товары' : currentCategory;
+                productsCount.textContent = `Товаров: ${filteredProducts.length}`;
                 
-                if (products.length === 0) {
+                if (filteredProducts.length === 0) {
                     productsGrid.innerHTML = `
                         <div style="text-align: center; grid-column: 1 / -1; padding: 3rem;">
                             <i class="fas fa-box-open" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
                             <p style="color: #666; font-size: 1.1rem;">Товаров пока нет</p>
+                            ${isAdmin ? '<p style="color: #666; margin-top: 0.5rem;">Нажмите "Добавить товар"</p>' : ''}
                         </div>
                     `;
                     return;
                 }
                 
-                products.forEach(product => {
+                filteredProducts.forEach(product => {
                     const productCard = document.createElement('div');
                     productCard.className = 'product-card';
                     
@@ -682,12 +811,6 @@
                         `;
                     }
                     
-                    // Категория
-                    let categoryHTML = '';
-                    if (product.category) {
-                        categoryHTML = `<p style="color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;"><strong>Категория:</strong> ${product.category}</p>`;
-                    }
-                    
                     productCard.innerHTML = `
                         ${adminControlsHTML}
                         <img src="${product.image}" alt="${product.name}" class="product-image" 
@@ -695,7 +818,6 @@
                         <div class="product-info">
                             <h3 class="product-title">${product.name}</h3>
                             <div class="product-price">${product.price.toLocaleString()} ₽</div>
-                            ${categoryHTML}
                             ${variantsHTML}
                             ${product.description ? `<p style="color: #666; margin-top: 0.5rem;">${product.description}</p>` : ''}
                         </div>
@@ -916,7 +1038,7 @@
                 const description = productDescription.value.trim();
                 const id = productId.value;
                 
-                if (!name || !price) {
+                if (!name || !price || !category) {
                     showNotification('Заполните все обязательные поля', 'error');
                     return;
                 }
@@ -953,13 +1075,13 @@
                 const productData = {
                     name,
                     price,
+                    category,
                     image,
                     variants,
                     updatedAt: Date.now()
                 };
                 
                 // Добавляем опциональные поля
-                if (category) productData.category = category;
                 if (description) productData.description = description;
                 
                 try {
@@ -1068,9 +1190,35 @@
             
             console.log('Приложение запущено!');
             
-            // Сообщение о пароле
-            console.log('⚠️ НЕ ЗАБУДЬ ПОМЕНЯТЬ ПАРОЛЬ!');
-            console.log('Поменяй в коде строку: const ADMIN_PASSWORD = "123456";');
+            // Инструкция по настройке Firebase
+            console.log(`
+            ============================================
+            НАСТРОЙКА FIREBASE ПРАВИЛ (ВАЖНО!):
+            
+            1. Realtime Database → Rules:
+               {
+                 "rules": {
+                   ".read": true,
+                   ".write": true
+                 }
+               }
+            
+            2. Storage → Rules:
+               rules_version = '2';
+               service firebase.storage {
+                 match /b/{bucket}/o {
+                   match /{allPaths=**} {
+                     allow read, write;
+                   }
+                 }
+               }
+            
+            3. Нажмите "Publish" в каждом разделе
+            
+            4. ⚠️ ПОМЕНЯЙТЕ ПАРОЛЬ в коде:
+               const ADMIN_PASSWORD = "123456";
+            ============================================
+            `);
         });
     </script>
 </body>
