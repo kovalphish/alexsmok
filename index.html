@@ -6,10 +6,9 @@
     <title>VapeStore | Магазин никотиновой продукции</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (только Database) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
     
     <style>
         * {
@@ -270,23 +269,6 @@
             display: none;
         }
 
-        .progress-bar {
-            width: 100%;
-            height: 10px;
-            background-color: #eee;
-            border-radius: 5px;
-            margin-top: 1rem;
-            overflow: hidden;
-            display: none;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background-color: var(--success-color);
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-
         /* Сетка товаров */
         .products-header {
             display: flex;
@@ -325,6 +307,7 @@
             width: 100%;
             height: 200px;
             object-fit: cover;
+            background-color: #f5f5f5;
         }
 
         .product-info {
@@ -565,15 +548,11 @@
                             <i class="fas fa-cloud-upload-alt"></i>
                         </div>
                         <p>Нажмите или перетащите сюда изображение</p>
-                        <p style="color: #666; font-size: 0.9rem;">JPG, PNG, размер до 5MB</p>
+                        <p style="color: #666; font-size: 0.9rem;">JPG, PNG, размер до 500KB (рекомендуется 300x300px)</p>
                         <input type="file" id="imageInput" accept="image/*" style="display: none;">
                         <img id="imagePreview" class="image-preview" src="" alt="Предпросмотр">
-                        <div class="progress-bar" id="progressBar">
-                            <div class="progress-fill" id="progressFill"></div>
-                        </div>
-                        <p id="progressText" style="color: #666; font-size: 0.9rem; margin-top: 0.5rem; display: none;"></p>
                     </div>
-                    <input type="hidden" id="imageUrl" value="">
+                    <input type="hidden" id="imageData" value="">
                 </div>
                 
                 <!-- Варианты товара -->
@@ -603,29 +582,27 @@
     </footer>
 
     <script>
-        // === ВАША КОНФИГУРАЦИЯ FIREBASE ===
+        // === ВАША КОНФИГУРАЦИЯ FIREBASE (только Database) ===
         const firebaseConfig = {
             apiKey: "AIzaSyD3wDw2ZTTXn2gY467grDOVi9E5vcusilc",
             authDomain: "alexsmok-1dc1c.firebaseapp.com",
             databaseURL: "https://alexsmok-1dc1c-default-rtdb.firebaseio.com",
             projectId: "alexsmok-1dc1c",
-            storageBucket: "alexsmok-1dc1c.firebasestorage.app",
             messagingSenderId: "173792761960",
             appId: "1:173792761960:web:5bc84d324322edd58ac3dd"
         };
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Инициализируем Firebase
+            // Инициализируем Firebase только с Database
             try {
                 firebase.initializeApp(firebaseConfig);
             } catch (error) {
                 console.log('Firebase уже инициализирован');
             }
             
-            const db = firebase.database();
-            const storage = firebase.storage();
+            const db = firebase.database(); // Только база данных
             
-            console.log('Firebase подключен');
+            console.log('Firebase Database подключен');
 
             // Элементы DOM
             const adminIcon = document.getElementById('adminIcon');
@@ -654,10 +631,7 @@
             const uploadArea = document.getElementById('uploadArea');
             const imageInput = document.getElementById('imageInput');
             const imagePreview = document.getElementById('imagePreview');
-            const progressBar = document.getElementById('progressBar');
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            const imageUrl = document.getElementById('imageUrl');
+            const imageData = document.getElementById('imageData');
             const addVariantBtn = document.getElementById('addVariantBtn');
             const variantType = document.getElementById('variantType');
             const variantValue = document.getElementById('variantValue');
@@ -668,11 +642,10 @@
             // Данные
             let products = [];
             let variants = [];
-            let categories = new Set(); // Храним уникальные категории
+            let categories = new Set();
             let isAdmin = false;
             let editingProductId = null;
-            let currentImageFile = null;
-            let uploadedImageUrl = '';
+            let currentImageData = null;
             let currentCategory = 'all';
             
             // Пароль администратора (ИЗМЕНИ НА СВОЙ!)
@@ -811,10 +784,14 @@
                         `;
                     }
                     
+                    // Изображение из Base64
+                    const imageSrc = product.imageData ? 
+                        `data:image/jpeg;base64,${product.imageData}` : 
+                        'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                    
                     productCard.innerHTML = `
                         ${adminControlsHTML}
-                        <img src="${product.image}" alt="${product.name}" class="product-image" 
-                             onerror="this.src='https://images.unsplash.com/photo-1571330735066-03aaa9429d89?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
+                        <img src="${imageSrc}" alt="${product.name}" class="product-image">
                         <div class="product-info">
                             <h3 class="product-title">${product.name}</h3>
                             <div class="product-price">${product.price.toLocaleString()} ₽</div>
@@ -871,7 +848,7 @@
                 variantType.focus();
             });
             
-            // Загрузка изображения
+            // Загрузка изображения как Base64
             uploadArea.addEventListener('click', () => imageInput.click());
             
             // Drag and drop
@@ -906,76 +883,70 @@
             });
             
             function handleImageUpload(file) {
-                // Проверка размера файла (максимум 5MB)
-                if (file.size > 5 * 1024 * 1024) {
-                    showNotification('Файл слишком большой. Максимум 5MB', 'error');
+                // Проверка размера файла (максимум 500KB для Base64)
+                if (file.size > 500 * 1024) {
+                    showNotification('Файл слишком большой. Максимум 500KB', 'error');
                     return;
                 }
                 
-                // Показываем предпросмотр
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    imagePreview.src = e.target.result;
-                    imagePreview.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
+                // Сжимаем изображение перед конвертацией в Base64
+                compressImage(file, 300, 300, 0.8, function(compressedFile) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        // Преобразуем в Base64 (убираем префикс data:image/...)
+                        const base64String = e.target.result.split(',')[1];
+                        imagePreview.src = e.target.result;
+                        imagePreview.style.display = 'block';
+                        currentImageData = base64String;
+                        imageData.value = base64String;
+                        
+                        showNotification('Изображение готово к загрузке');
+                    };
+                    reader.readAsDataURL(compressedFile);
+                });
                 
-                currentImageFile = file;
-                uploadedImageUrl = '';
-                imageUrl.value = '';
-                
-                // Сбрасываем инпут файла, чтобы можно было загрузить тот же файл снова
+                // Сбрасываем инпут файла
                 imageInput.value = '';
             }
             
-            // Загрузка изображения в Firebase Storage
-            async function uploadImageToFirebase() {
-                if (!currentImageFile) {
-                    throw new Error('Нет файла для загрузки');
-                }
+            // Функция сжатия изображения
+            function compressImage(file, maxWidth, maxHeight, quality, callback) {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
                 
-                // Создаем уникальное имя файла
-                const fileName = Date.now() + '_' + currentImageFile.name.replace(/\s+/g, '_');
-                const storageRef = storage.ref('products/' + fileName);
-                
-                // Показываем прогресс
-                progressBar.style.display = 'block';
-                progressText.style.display = 'block';
-                progressFill.style.width = '0%';
-                progressText.textContent = 'Начало загрузки...';
-                
-                return new Promise((resolve, reject) => {
-                    const uploadTask = storageRef.put(currentImageFile);
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.src = event.target.result;
                     
-                    uploadTask.on('state_changed',
-                        (snapshot) => {
-                            // Прогресс загрузки
-                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                            progressFill.style.width = progress + '%';
-                            progressText.textContent = `Загрузка: ${Math.round(progress)}%`;
-                        },
-                        (error) => {
-                            // Ошибка
-                            progressBar.style.display = 'none';
-                            progressText.style.display = 'none';
-                            reject(error);
-                        },
-                        async () => {
-                            // Успех
-                            try {
-                                const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                                progressBar.style.display = 'none';
-                                progressText.style.display = 'none';
-                                uploadedImageUrl = downloadURL;
-                                imageUrl.value = downloadURL;
-                                showNotification('Изображение загружено!');
-                                resolve(downloadURL);
-                            } catch (error) {
-                                reject(error);
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        // Рассчитываем новые размеры
+                        if (width > height) {
+                            if (width > maxWidth) {
+                                height *= maxWidth / width;
+                                width = maxWidth;
+                            }
+                        } else {
+                            if (height > maxHeight) {
+                                width *= maxHeight / height;
+                                height = maxHeight;
                             }
                         }
-                    );
-                });
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        canvas.toBlob(function(blob) {
+                            callback(blob);
+                        }, 'image/jpeg', quality);
+                    };
+                };
             }
             
             // Редактирование товара
@@ -994,11 +965,11 @@
                 productId.value = product.id;
                 
                 // Показываем текущее изображение
-                if (product.image) {
-                    imagePreview.src = product.image;
+                if (product.imageData) {
+                    imagePreview.src = `data:image/jpeg;base64,${product.imageData}`;
                     imagePreview.style.display = 'block';
-                    uploadedImageUrl = product.image;
-                    imageUrl.value = product.image;
+                    currentImageData = product.imageData;
+                    imageData.value = product.imageData;
                 }
                 
                 // Заполняем варианты
@@ -1048,27 +1019,8 @@
                     return;
                 }
                 
-                // Если есть новый файл - загружаем его
-                if (currentImageFile && !uploadedImageUrl) {
-                    try {
-                        saveProductBtn.disabled = true;
-                        saveProductBtn.textContent = 'Загрузка изображения...';
-                        await uploadImageToFirebase();
-                    } catch (error) {
-                        console.error('Ошибка загрузки изображения:', error);
-                        showNotification('Ошибка загрузки изображения', 'error');
-                        saveProductBtn.disabled = false;
-                        saveProductBtn.textContent = editingProductId ? 'Обновить товар' : 'Сохранить товар';
-                        return;
-                    }
-                }
-                
-                const image = imageUrl.value || uploadedImageUrl;
-                
-                if (!image) {
+                if (!currentImageData) {
                     showNotification('Загрузите изображение', 'error');
-                    saveProductBtn.disabled = false;
-                    saveProductBtn.textContent = editingProductId ? 'Обновить товар' : 'Сохранить товар';
                     return;
                 }
                 
@@ -1076,7 +1028,7 @@
                     name,
                     price,
                     category,
-                    image,
+                    imageData: currentImageData, // Сохраняем Base64
                     variants,
                     updatedAt: Date.now()
                 };
@@ -1101,9 +1053,6 @@
                 } catch (error) {
                     console.error('Ошибка сохранения:', error);
                     showNotification('Ошибка сохранения', 'error');
-                } finally {
-                    saveProductBtn.disabled = false;
-                    saveProductBtn.textContent = editingProductId ? 'Обновить товар' : 'Сохранить товар';
                 }
             });
             
@@ -1114,11 +1063,8 @@
                 renderVariants();
                 productId.value = '';
                 imagePreview.style.display = 'none';
-                progressBar.style.display = 'none';
-                progressText.style.display = 'none';
-                currentImageFile = null;
-                uploadedImageUrl = '';
-                imageUrl.value = '';
+                currentImageData = null;
+                imageData.value = '';
                 modalTitle.textContent = 'Добавить товар';
                 saveProductBtn.textContent = 'Сохранить товар';
                 editingProductId = null;
@@ -1188,35 +1134,28 @@
             // Запускаем загрузку данных
             loadProducts();
             
-            console.log('Приложение запущено!');
+            console.log('Приложение запущено! БЕСПЛАТНО!');
             
-            // Инструкция по настройке Firebase
+            // Инструкция по настройке
             console.log(`
             ============================================
-            НАСТРОЙКА FIREBASE ПРАВИЛ (ВАЖНО!):
+            ВСЁ БЕСПЛАТНО! Нужно настроить только:
             
-            1. Realtime Database → Rules:
+            1. Firebase Console → Realtime Database → Rules
                {
                  "rules": {
                    ".read": true,
                    ".write": true
                  }
                }
+               → Publish
             
-            2. Storage → Rules:
-               rules_version = '2';
-               service firebase.storage {
-                 match /b/{bucket}/o {
-                   match /{allPaths=**} {
-                     allow read, write;
-                   }
-                 }
-               }
-            
-            3. Нажмите "Publish" в каждом разделе
-            
-            4. ⚠️ ПОМЕНЯЙТЕ ПАРОЛЬ в коде:
+            2. ⚠️ ПОМЕНЯЙ ПАРОЛЬ в коде:
                const ADMIN_PASSWORD = "123456";
+            
+            3. Картинки хранятся в базе как Base64
+               (Бесплатно, но максимум 500KB на картинку)
+            
             ============================================
             `);
         });
