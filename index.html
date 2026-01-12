@@ -190,6 +190,58 @@
             background-color: #219653;
         }
 
+        /* Загрузка изображения */
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .upload-area:hover {
+            border-color: var(--secondary-color);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--success-color);
+            background-color: rgba(39, 174, 96, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #ccc;
+            margin-bottom: 1rem;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 200px;
+            margin-top: 1rem;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background-color: #eee;
+            border-radius: 5px;
+            margin-top: 1rem;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--success-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
         /* Сетка товаров */
         .products-header {
             display: flex;
@@ -442,10 +494,23 @@
                     <textarea id="productDescription" class="form-control" rows="3"></textarea>
                 </div>
                 
+                <!-- Загрузка изображения -->
                 <div class="form-group">
-                    <label for="imageUrl">URL изображения *</label>
-                    <input type="text" id="imageUrl" class="form-control" placeholder="https://example.com/image.jpg" required>
-                    <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">Используйте прямую ссылку на изображение</p>
+                    <label>Изображение товара *</label>
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
+                        <p>Нажмите или перетащите сюда изображение</p>
+                        <p style="color: #666; font-size: 0.9rem;">JPG, PNG, размер до 5MB</p>
+                        <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                        <img id="imagePreview" class="image-preview" src="" alt="Предпросмотр">
+                        <div class="progress-bar" id="progressBar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <p id="progressText" style="color: #666; font-size: 0.9rem; margin-top: 0.5rem; display: none;"></p>
+                    </div>
+                    <input type="hidden" id="imageUrl" value="">
                 </div>
                 
                 <!-- Варианты товара -->
@@ -490,6 +555,7 @@
             // Инициализируем Firebase
             firebase.initializeApp(firebaseConfig);
             const db = firebase.database();
+            const storage = firebase.storage();
             
             console.log('Firebase подключен');
 
@@ -515,6 +581,12 @@
             const productPrice = document.getElementById('productPrice');
             const productCategory = document.getElementById('productCategory');
             const productDescription = document.getElementById('productDescription');
+            const uploadArea = document.getElementById('uploadArea');
+            const imageInput = document.getElementById('imageInput');
+            const imagePreview = document.getElementById('imagePreview');
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
             const imageUrl = document.getElementById('imageUrl');
             const addVariantBtn = document.getElementById('addVariantBtn');
             const variantType = document.getElementById('variantType');
@@ -528,9 +600,11 @@
             let variants = [];
             let isAdmin = false;
             let editingProductId = null;
+            let currentImageFile = null;
+            let uploadedImageUrl = '';
             
-            // Пароль администратора (измените на свой)
-            const ADMIN_PASSWORD = "mysecretpassword123";
+            // Пароль администратора (ИЗМЕНИ НА СВОЙ!)
+            const ADMIN_PASSWORD = "123456"; // ⚠️ ПОМЕНЯЙ ЭТОТ ПАРОЛЬ!
             
             // Уведомления
             function showNotification(message, type = 'success') {
@@ -675,8 +749,115 @@
                 variantType.focus();
             });
             
+            // Загрузка изображения
+            uploadArea.addEventListener('click', () => imageInput.click());
+            
+            // Drag and drop
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type.startsWith('image/')) {
+                        handleImageUpload(file);
+                    } else {
+                        showNotification('Выберите файл изображения', 'error');
+                    }
+                }
+            });
+            
+            imageInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    handleImageUpload(file);
+                }
+            });
+            
+            function handleImageUpload(file) {
+                // Проверка размера файла (максимум 5MB)
+                if (file.size > 5 * 1024 * 1024) {
+                    showNotification('Файл слишком большой. Максимум 5MB', 'error');
+                    return;
+                }
+                
+                // Показываем предпросмотр
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+                
+                currentImageFile = file;
+                uploadedImageUrl = '';
+                imageUrl.value = '';
+                
+                // Сбрасываем инпут файла, чтобы можно было загрузить тот же файл снова
+                imageInput.value = '';
+            }
+            
+            // Загрузка изображения в Firebase Storage
+            async function uploadImageToFirebase() {
+                if (!currentImageFile) {
+                    throw new Error('Нет файла для загрузки');
+                }
+                
+                // Создаем уникальное имя файла
+                const fileName = Date.now() + '_' + currentImageFile.name.replace(/\s+/g, '_');
+                const storageRef = storage.ref('products/' + fileName);
+                
+                // Показываем прогресс
+                progressBar.style.display = 'block';
+                progressText.style.display = 'block';
+                progressFill.style.width = '0%';
+                progressText.textContent = 'Начало загрузки...';
+                
+                return new Promise((resolve, reject) => {
+                    const uploadTask = storageRef.put(currentImageFile);
+                    
+                    uploadTask.on('state_changed',
+                        (snapshot) => {
+                            // Прогресс загрузки
+                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                            progressFill.style.width = progress + '%';
+                            progressText.textContent = `Загрузка: ${Math.round(progress)}%`;
+                        },
+                        (error) => {
+                            // Ошибка
+                            progressBar.style.display = 'none';
+                            progressText.style.display = 'none';
+                            reject(error);
+                        },
+                        async () => {
+                            // Успех
+                            try {
+                                const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                                progressBar.style.display = 'none';
+                                progressText.style.display = 'none';
+                                uploadedImageUrl = downloadURL;
+                                imageUrl.value = downloadURL;
+                                showNotification('Изображение загружено!');
+                                resolve(downloadURL);
+                            } catch (error) {
+                                reject(error);
+                            }
+                        }
+                    );
+                });
+            }
+            
             // Редактирование товара
-            window.editProduct = function(id) {
+            window.editProduct = async function(id) {
                 const product = products.find(p => p.id === id);
                 if (!product) {
                     showNotification('Товар не найден', 'error');
@@ -688,8 +869,15 @@
                 productPrice.value = product.price;
                 productCategory.value = product.category || '';
                 productDescription.value = product.description || '';
-                imageUrl.value = product.image;
                 productId.value = product.id;
+                
+                // Показываем текущее изображение
+                if (product.image) {
+                    imagePreview.src = product.image;
+                    imagePreview.style.display = 'block';
+                    uploadedImageUrl = product.image;
+                    imageUrl.value = product.image;
+                }
                 
                 // Заполняем варианты
                 variantsContainer.innerHTML = '';
@@ -726,16 +914,39 @@
                 const price = parseFloat(productPrice.value);
                 const category = productCategory.value.trim();
                 const description = productDescription.value.trim();
-                const image = imageUrl.value.trim();
                 const id = productId.value;
                 
-                if (!name || !price || !image) {
+                if (!name || !price) {
                     showNotification('Заполните все обязательные поля', 'error');
                     return;
                 }
                 
                 if (price <= 0) {
                     showNotification('Цена должна быть больше 0', 'error');
+                    return;
+                }
+                
+                // Если есть новый файл - загружаем его
+                if (currentImageFile && !uploadedImageUrl) {
+                    try {
+                        saveProductBtn.disabled = true;
+                        saveProductBtn.textContent = 'Загрузка изображения...';
+                        await uploadImageToFirebase();
+                    } catch (error) {
+                        console.error('Ошибка загрузки изображения:', error);
+                        showNotification('Ошибка загрузки изображения', 'error');
+                        saveProductBtn.disabled = false;
+                        saveProductBtn.textContent = editingProductId ? 'Обновить товар' : 'Сохранить товар';
+                        return;
+                    }
+                }
+                
+                const image = imageUrl.value || uploadedImageUrl;
+                
+                if (!image) {
+                    showNotification('Загрузите изображение', 'error');
+                    saveProductBtn.disabled = false;
+                    saveProductBtn.textContent = editingProductId ? 'Обновить товар' : 'Сохранить товар';
                     return;
                 }
                 
@@ -768,6 +979,9 @@
                 } catch (error) {
                     console.error('Ошибка сохранения:', error);
                     showNotification('Ошибка сохранения', 'error');
+                } finally {
+                    saveProductBtn.disabled = false;
+                    saveProductBtn.textContent = editingProductId ? 'Обновить товар' : 'Сохранить товар';
                 }
             });
             
@@ -777,6 +991,12 @@
                 variants = [];
                 renderVariants();
                 productId.value = '';
+                imagePreview.style.display = 'none';
+                progressBar.style.display = 'none';
+                progressText.style.display = 'none';
+                currentImageFile = null;
+                uploadedImageUrl = '';
+                imageUrl.value = '';
                 modalTitle.textContent = 'Добавить товар';
                 saveProductBtn.textContent = 'Сохранить товар';
                 editingProductId = null;
@@ -847,6 +1067,10 @@
             loadProducts();
             
             console.log('Приложение запущено!');
+            
+            // Сообщение о пароле
+            console.log('⚠️ НЕ ЗАБУДЬ ПОМЕНЯТЬ ПАРОЛЬ!');
+            console.log('Поменяй в коде строку: const ADMIN_PASSWORD = "123456";');
         });
     </script>
 </body>
