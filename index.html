@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VapeStore | Магазин никотиновой продукции</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --success-color: #27ae60;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        body {
+            background-color: #f9f9f9;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Шапка */
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo i {
+            color: var(--secondary-color);
+        }
+
+        /* Иконка админа */
+        .admin-icon {
+            background-color: var(--secondary-color);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+        }
+
+        .admin-icon:hover {
+            background-color: #2980b9;
+            transform: scale(1.05);
+        }
+
+        /* Модальные окна */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal {
+            background-color: white;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            animation: slideIn 0.4s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            color: var(--primary-color);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #777;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        .form-control:focus {
+            border-color: var(--secondary-color);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.8rem 1.5rem;
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: var(--transition);
+            text-align: center;
+        }
+
+        .btn:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+        }
+
+        .btn-success:hover {
+            background-color: #219653;
+        }
+
+        /* Сетка товаров */
+        .products-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 2rem 0;
+        }
+
+        .products-header h1 {
+            color: var(--primary-color);
+            font-size: 2rem;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .product-card {
+            background-color: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .product-info {
+            padding: 1.5rem;
+        }
+
+        .product-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+
+        .product-price {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-color);
+            margin-bottom: 1rem;
+        }
+
+        .product-variants {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .variant-tag {
+            background-color: var(--light-color);
+            padding: 0.3rem 0.7rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #333;
+        }
+
+        /* Кнопки редактирования */
+        .product-admin-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .product-card:hover .product-admin-controls {
+            opacity: 1;
+        }
+
+        .admin-control-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+        }
+
+        .edit-btn {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .delete-btn {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        /* Уведомление */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--success-color);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 5px;
+            box-shadow: var(--shadow);
+            display: none;
+            z-index: 1001;
+            animation: slideIn 0.3s ease;
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Футер */
+        footer {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2rem 0;
+            margin-top: 3rem;
+        }
+
+        .footer-content {
+            text-align: center;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .products-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 1.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .products-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .modal {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Уведомление -->
+    <div class="notification" id="notification"></div>
+
+    <!-- Шапка сайта -->
+    <header>
+        <div class="container header-content">
+            <a href="#" class="logo">
+                <i class="fas fa-smoking"></i>
+                VapeStore
+            </a>
+            <div class="admin-icon" id="adminIcon">
+                <i class="fas fa-user-lock"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- Модальное окно авторизации -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Авторизация администратора</h2>
+                <button class="close-btn" id="closeLoginModal">&times;</button>
+            </div>
+            <div id="loginForm">
+                <div class="form-group">
+                    <label for="password">Пароль администратора</label>
+                    <input type="password" id="password" class="form-control" placeholder="Введите пароль" required>
+                </div>
+                <button class="btn btn-success" id="loginBtn" style="width: 100%;">Войти</button>
+            </div>
+            <p id="loginMessage" style="margin-top: 1rem; color: var(--accent-color); display: none;">Неверный пароль</p>
+        </div>
+    </div>
+
+    <!-- Основной контент -->
+    <main class="container">
+        <!-- Заголовок и информация о товарах -->
+        <div class="products-header">
+            <h1>Наши товары</h1>
+            <p id="productsCount">Загрузка...</p>
+        </div>
+
+        <!-- Сетка товаров -->
+        <div class="products-grid" id="productsGrid">
+            <!-- Товары будут загружаться здесь -->
+        </div>
+
+        <!-- Кнопка добавления товара (только для админа) -->
+        <div id="addProductButton" style="display: none; text-align: center; margin: 3rem 0;">
+            <button class="btn btn-success" id="showAddProductModal" style="font-size: 1.2rem; padding: 1rem 2rem;">
+                <i class="fas fa-plus"></i> Добавить новый товар
+            </button>
+        </div>
+    </main>
+
+    <!-- Модальное окно добавления/редактирования товара -->
+    <div class="modal-overlay" id="productModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">Добавление товара</h2>
+                <button class="close-btn" id="closeProductModal">&times;</button>
+            </div>
+            <form id="productForm">
+                <div class="form-group">
+                    <label for="productName">Название товара *</label>
+                    <input type="text" id="productName" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="productPrice">Цена (₽) *</label>
+                    <input type="number" id="productPrice" class="form-control" min="0" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="productCategory">Категория</label>
+                    <input type="text" id="productCategory" class="form-control" placeholder="Например: Одноразовые вейпы">
+                </div>
+                
+                <div class="form-group">
+                    <label for="productDescription">Описание товара</label>
+                    <textarea id="productDescription" class="form-control" rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="imageUrl">URL изображения *</label>
+                    <input type="text" id="imageUrl" class="form-control" placeholder="https://example.com/image.jpg" required>
+                    <p style="color: #666; font-size: 0.9rem; margin-top: 0.5rem;">Используйте прямую ссылку на изображение</p>
+                </div>
+                
+                <!-- Варианты товара -->
+                <div class="form-group">
+                    <label>Варианты товара (вкусы, цвета)</label>
+                    <p style="color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;">Например: Вкус: Мята, Цвет: Черный</p>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="text" id="variantType" class="form-control" placeholder="Тип (напр. Вкус)" style="flex: 1;">
+                        <input type="text" id="variantValue" class="form-control" placeholder="Значение (напр. Мята)" style="flex: 1;">
+                        <button type="button" class="btn" id="addVariantBtn">+</button>
+                    </div>
+                    <div class="variants-container" id="variantsContainer"></div>
+                </div>
+                
+                <input type="hidden" id="productId" value="">
+                <button type="submit" class="btn btn-success" id="saveProductBtn" style="width: 100%;">Сохранить товар</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Подвал -->
+    <footer>
+        <div class="container footer-content">
+            <p>VapeStore &copy; 2026 | Магазин никотиновой продукции</p>
+            <p>Товары предназначены для лиц старше 18 лет</p>
+        </div>
+    </footer>
+
+    <script>
+        // === ВАША КОНФИГУРАЦИЯ FIREBASE ===
+        const firebaseConfig = {
+            apiKey: "AIzaSyD3wDw2ZTTXn2gY467grDOVi9E5vcusilc",
+            authDomain: "alexsmok-1dc1c.firebaseapp.com",
+            databaseURL: "https://alexsmok-1dc1c-default-rtdb.firebaseio.com",
+            projectId: "alexsmok-1dc1c",
+            storageBucket: "alexsmok-1dc1c.firebasestorage.app",
+            messagingSenderId: "173792761960",
+            appId: "1:173792761960:web:5bc84d324322edd58ac3dd"
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Инициализируем Firebase
+            firebase.initializeApp(firebaseConfig);
+            const db = firebase.database();
+            
+            console.log('Firebase подключен');
+
+            // Элементы DOM
+            const adminIcon = document.getElementById('adminIcon');
+            const loginModal = document.getElementById('loginModal');
+            const closeLoginModal = document.getElementById('closeLoginModal');
+            const passwordInput = document.getElementById('password');
+            const loginBtn = document.getElementById('loginBtn');
+            const loginMessage = document.getElementById('loginMessage');
+            const addProductButton = document.getElementById('addProductButton');
+            const showAddProductModal = document.getElementById('showAddProductModal');
+            const productModal = document.getElementById('productModal');
+            const closeProductModal = document.getElementById('closeProductModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const productsGrid = document.getElementById('productsGrid');
+            const productsCount = document.getElementById('productsCount');
+            const notification = document.getElementById('notification');
+            
+            // Форма товара
+            const productForm = document.getElementById('productForm');
+            const productName = document.getElementById('productName');
+            const productPrice = document.getElementById('productPrice');
+            const productCategory = document.getElementById('productCategory');
+            const productDescription = document.getElementById('productDescription');
+            const imageUrl = document.getElementById('imageUrl');
+            const addVariantBtn = document.getElementById('addVariantBtn');
+            const variantType = document.getElementById('variantType');
+            const variantValue = document.getElementById('variantValue');
+            const variantsContainer = document.getElementById('variantsContainer');
+            const saveProductBtn = document.getElementById('saveProductBtn');
+            const productId = document.getElementById('productId');
+            
+            // Данные
+            let products = [];
+            let variants = [];
+            let isAdmin = false;
+            let editingProductId = null;
+            
+            // Пароль администратора (измените на свой)
+            const ADMIN_PASSWORD = "mysecretpassword123";
+            
+            // Уведомления
+            function showNotification(message, type = 'success') {
+                notification.textContent = message;
+                notification.style.backgroundColor = type === 'success' ? '#27ae60' : '#e74c3c';
+                notification.style.display = 'block';
+                setTimeout(() => notification.style.display = 'none', 3000);
+            }
+            
+            // Загрузка товаров
+            function loadProducts() {
+                db.ref('products').on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        products = Object.keys(data).map(key => ({
+                            id: key,
+                            ...data[key]
+                        }));
+                        console.log('Товары загружены:', products.length);
+                    } else {
+                        products = [];
+                    }
+                    
+                    renderProducts();
+                });
+            }
+            
+            // Отображение товаров
+            function renderProducts() {
+                productsGrid.innerHTML = '';
+                
+                // Сортировка по дате (новые первыми)
+                products.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                
+                productsCount.textContent = `Товаров: ${products.length}`;
+                
+                if (products.length === 0) {
+                    productsGrid.innerHTML = `
+                        <div style="text-align: center; grid-column: 1 / -1; padding: 3rem;">
+                            <i class="fas fa-box-open" style="font-size: 3rem; color: #ccc; margin-bottom: 1rem;"></i>
+                            <p style="color: #666; font-size: 1.1rem;">Товаров пока нет</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                products.forEach(product => {
+                    const productCard = document.createElement('div');
+                    productCard.className = 'product-card';
+                    
+                    // Формируем варианты
+                    let variantsHTML = '';
+                    if (product.variants && product.variants.length > 0) {
+                        variantsHTML = `
+                            <div class="product-variants">
+                                ${product.variants.map(v => 
+                                    `<span class="variant-tag">${v.type}: ${v.value}</span>`
+                                ).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    // Кнопки админа
+                    let adminControlsHTML = '';
+                    if (isAdmin) {
+                        adminControlsHTML = `
+                            <div class="product-admin-controls">
+                                <button class="admin-control-btn edit-btn" onclick="editProduct('${product.id}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="admin-control-btn delete-btn" onclick="deleteProduct('${product.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    }
+                    
+                    // Категория
+                    let categoryHTML = '';
+                    if (product.category) {
+                        categoryHTML = `<p style="color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;"><strong>Категория:</strong> ${product.category}</p>`;
+                    }
+                    
+                    productCard.innerHTML = `
+                        ${adminControlsHTML}
+                        <img src="${product.image}" alt="${product.name}" class="product-image" 
+                             onerror="this.src='https://images.unsplash.com/photo-1571330735066-03aaa9429d89?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'">
+                        <div class="product-info">
+                            <h3 class="product-title">${product.name}</h3>
+                            <div class="product-price">${product.price.toLocaleString()} ₽</div>
+                            ${categoryHTML}
+                            ${variantsHTML}
+                            ${product.description ? `<p style="color: #666; margin-top: 0.5rem;">${product.description}</p>` : ''}
+                        </div>
+                    `;
+                    
+                    productsGrid.appendChild(productCard);
+                });
+            }
+            
+            // Отображение вариантов в форме
+            function renderVariants() {
+                variantsContainer.innerHTML = '';
+                
+                if (variants.length === 0) {
+                    variantsContainer.innerHTML = '<p style="color: #666; font-size: 0.9rem; text-align: center; padding: 1rem;">Нет вариантов</p>';
+                    return;
+                }
+                
+                variants.forEach((variant, index) => {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'background: #f0f0f0; padding: 0.5rem 1rem; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;';
+                    div.innerHTML = `
+                        <span><strong>${variant.type}:</strong> ${variant.value}</span>
+                        <button type="button" onclick="removeVariant(${index})" style="background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 1.2rem;">×</button>
+                    `;
+                    variantsContainer.appendChild(div);
+                });
+            }
+            
+            // Удаление варианта
+            window.removeVariant = function(index) {
+                variants.splice(index, 1);
+                renderVariants();
+            };
+            
+            // Добавление варианта
+            addVariantBtn.addEventListener('click', function() {
+                const type = variantType.value.trim();
+                const value = variantValue.value.trim();
+                
+                if (!type || !value) {
+                    showNotification('Заполните тип и значение', 'error');
+                    return;
+                }
+                
+                variants.push({ type, value });
+                renderVariants();
+                
+                variantType.value = '';
+                variantValue.value = '';
+                variantType.focus();
+            });
+            
+            // Редактирование товара
+            window.editProduct = function(id) {
+                const product = products.find(p => p.id === id);
+                if (!product) {
+                    showNotification('Товар не найден', 'error');
+                    return;
+                }
+                
+                // Заполняем форму
+                productName.value = product.name;
+                productPrice.value = product.price;
+                productCategory.value = product.category || '';
+                productDescription.value = product.description || '';
+                imageUrl.value = product.image;
+                productId.value = product.id;
+                
+                // Заполняем варианты
+                variantsContainer.innerHTML = '';
+                variants = product.variants ? [...product.variants] : [];
+                renderVariants();
+                
+                // Обновляем заголовок
+                modalTitle.textContent = 'Редактировать товар';
+                saveProductBtn.textContent = 'Обновить товар';
+                
+                // Показываем модалку
+                productModal.style.display = 'flex';
+                editingProductId = id;
+            };
+            
+            // Удаление товара
+            window.deleteProduct = async function(id) {
+                if (!confirm('Удалить этот товар?')) return;
+                
+                try {
+                    await db.ref('products/' + id).remove();
+                    showNotification('Товар удален');
+                } catch (error) {
+                    console.error('Ошибка удаления:', error);
+                    showNotification('Ошибка удаления', 'error');
+                }
+            };
+            
+            // Сохранение товара
+            productForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const name = productName.value.trim();
+                const price = parseFloat(productPrice.value);
+                const category = productCategory.value.trim();
+                const description = productDescription.value.trim();
+                const image = imageUrl.value.trim();
+                const id = productId.value;
+                
+                if (!name || !price || !image) {
+                    showNotification('Заполните все обязательные поля', 'error');
+                    return;
+                }
+                
+                if (price <= 0) {
+                    showNotification('Цена должна быть больше 0', 'error');
+                    return;
+                }
+                
+                const productData = {
+                    name,
+                    price,
+                    image,
+                    variants,
+                    updatedAt: Date.now()
+                };
+                
+                // Добавляем опциональные поля
+                if (category) productData.category = category;
+                if (description) productData.description = description;
+                
+                try {
+                    if (id) {
+                        // Обновление
+                        await db.ref('products/' + id).update(productData);
+                        showNotification('Товар обновлен!');
+                    } else {
+                        // Добавление
+                        productData.createdAt = Date.now();
+                        await db.ref('products').push(productData);
+                        showNotification('Товар добавлен!');
+                    }
+                    
+                    productModal.style.display = 'none';
+                    resetProductForm();
+                } catch (error) {
+                    console.error('Ошибка сохранения:', error);
+                    showNotification('Ошибка сохранения', 'error');
+                }
+            });
+            
+            // Сброс формы
+            function resetProductForm() {
+                productForm.reset();
+                variants = [];
+                renderVariants();
+                productId.value = '';
+                modalTitle.textContent = 'Добавить товар';
+                saveProductBtn.textContent = 'Сохранить товар';
+                editingProductId = null;
+            }
+            
+            // Авторизация
+            loginBtn.addEventListener('click', function() {
+                const password = passwordInput.value.trim();
+                
+                if (password === ADMIN_PASSWORD) {
+                    isAdmin = true;
+                    loginModal.style.display = 'none';
+                    addProductButton.style.display = 'block';
+                    
+                    // Обновляем товары с кнопками редактирования
+                    renderProducts();
+                    
+                    showNotification('Вы вошли как администратор');
+                } else {
+                    loginMessage.style.display = 'block';
+                }
+            });
+            
+            // Выход из админки
+            adminIcon.addEventListener('click', function() {
+                if (isAdmin) {
+                    // Выход
+                    isAdmin = false;
+                    addProductButton.style.display = 'none';
+                    renderProducts();
+                    showNotification('Вы вышли из режима администратора');
+                } else {
+                    // Вход
+                    loginModal.style.display = 'flex';
+                    passwordInput.focus();
+                }
+            });
+            
+            // Показать форму добавления товара
+            showAddProductModal.addEventListener('click', function() {
+                resetProductForm();
+                productModal.style.display = 'flex';
+            });
+            
+            // Закрытие модалок
+            closeLoginModal.addEventListener('click', () => {
+                loginModal.style.display = 'none';
+                loginMessage.style.display = 'none';
+            });
+            
+            closeProductModal.addEventListener('click', () => {
+                productModal.style.display = 'none';
+                resetProductForm();
+            });
+            
+            // Закрытие при клике вне окна
+            document.querySelectorAll('.modal-overlay').forEach(modal => {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        this.style.display = 'none';
+                        if (this === loginModal) loginMessage.style.display = 'none';
+                        if (this === productModal) resetProductForm();
+                    }
+                });
+            });
+            
+            // Запускаем загрузку данных
+            loadProducts();
+            
+            console.log('Приложение запущено!');
+        });
+    </script>
+</body>
+</html>
