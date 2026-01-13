@@ -827,70 +827,62 @@
                     return;
                 }
                 
-                // В функции renderProducts() ЗАМЕНИТЕ блок с forEach на этот:
-                filteredProducts.forEach(product => {
-                    const productCard = document.createElement('div');
-                    productCard.className = 'product-card';
-                    
-                    // Формируем варианты (ПОДКАТЕГОРИИ - вкусы, цвета)
-                    let variantsHTML = '';
-                    if (product.variants && product.variants.length > 0) {
-                        // ПРОВЕРЬТЕ: product.variants должен быть массивом объектов с type и value
-                        console.log('Варианты товара:', product.id, product.variants);
-                        
-                        variantsHTML = `
-                            <div class="product-variants">
-                                ${product.variants.map(v => {
-                                    // Защита от undefined
-                                    if (!v || !v.type || !v.value) return '';
-                                    return `<span class="variant-tag">${v.type}: ${v.value}</span>`;
-                                }).join('')}
-                            </div>
-                        `;
-                    } else {
-                        console.log('Нет вариантов у товара:', product.id);
-                    }
-                    
-                    // Кнопки админа
-                    let adminControlsHTML = '';
-                    if (isAdmin) {
-                        adminControlsHTML = `
-                            <div class="product-admin-controls">
-                                <button class="admin-control-btn edit-btn" onclick="editProduct('${product.id}')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="admin-control-btn delete-btn" onclick="deleteProduct('${product.id}')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        `;
-                    }
-                    
-                    // Изображение из Base64
-                    const imageSrc = product.imageData ? 
-                        `data:image/jpeg;base64,${product.imageData}` : 
-                        'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-                    
-                    // Описание (если есть)
-                    let descriptionHTML = '';
-                    if (product.description && product.description.trim() !== '') {
-                        descriptionHTML = `<div class="product-description">${product.description}</div>`;
-                    }
-                    
-                    productCard.innerHTML = `
-                        ${adminControlsHTML}
-                        <img src="${imageSrc}" alt="${product.name}" class="product-image">
-                        <div class="product-info">
-                            <h3 class="product-title">${product.name}</h3>
-                            <div class="product-price">${product.price.toLocaleString()} ₽</div>
-                            ${variantsHTML}
-                            ${descriptionHTML}
+            // В функции renderProducts() найдите этот блок:
+            filteredProducts.forEach(product => {
+                const productCard = document.createElement('div');
+                productCard.className = 'product-card';
+                
+                // Формируем варианты (ПОДКАТЕГОРИИ - вкусы, цвета)
+                let variantsHTML = '';
+                if (product.variants && product.variants.length > 0) {
+                    variantsHTML = `
+                        <div class="product-variants">
+                            ${product.variants.map(v => 
+                                `<span class="variant-tag">${v.type}: ${v.value}</span>`
+                            ).join('')}
                         </div>
                     `;
-                    
-                    productsGrid.appendChild(productCard);
-                });
-            
+                }
+                
+                // Кнопки админа
+                let adminControlsHTML = '';
+                if (isAdmin) {
+                    adminControlsHTML = `
+                        <div class="product-admin-controls">
+                            <button class="admin-control-btn edit-btn" onclick="editProduct('${product.id}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="admin-control-btn delete-btn" onclick="deleteProduct('${product.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                // Изображение из Base64
+                const imageSrc = product.imageData ? 
+                    `data:image/jpeg;base64,${product.imageData}` : 
+                    'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                
+                // Описание (если есть)
+                let descriptionHTML = '';
+                if (product.description && product.description.trim() !== '') {
+                    descriptionHTML = `<div class="product-description">${product.description}</div>`;
+                }
+                
+                productCard.innerHTML = `
+                    ${adminControlsHTML}
+                    <img src="${imageSrc}" alt="${product.name}" class="product-image">
+                    <div class="product-info">
+                        <h3 class="product-title">${product.name}</h3>
+                        <div class="product-price">${product.price.toLocaleString()} ₽</div>
+                        ${variantsHTML}
+                        ${descriptionHTML}
+                    </div>
+                `;
+                
+                productsGrid.appendChild(productCard);
+            });
             // Отображение вариантов в форме
             function renderVariants() {
                 variantsContainer.innerHTML = '';
