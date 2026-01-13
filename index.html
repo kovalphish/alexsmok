@@ -630,7 +630,7 @@
                 
                 <!-- Варианты товара (подкатегории - вкусы, цвета) -->
                 <div class="form-group">
-                    <label>Варианты товара (вкусы, цвета) *</label>
+                    <label>Варианты товара (вкусы, цвета)</label>
                     <p style="color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;">Например: Вкус: Мята, Цвет: Черный</p>
                     <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
                         <input type="text" id="variantType" class="form-control" placeholder="Тип (напр. Вкус)" style="flex: 1;">
@@ -827,62 +827,66 @@
                     return;
                 }
                 
-            // В функции renderProducts() найдите этот блок:
-            filteredProducts.forEach(product => {
-                const productCard = document.createElement('div');
-                productCard.className = 'product-card';
-                
-                // Формируем варианты (ПОДКАТЕГОРИИ - вкусы, цвета)
-                let variantsHTML = '';
-                if (product.variants && product.variants.length > 0) {
-                    variantsHTML = `
-                        <div class="product-variants">
-                            ${product.variants.map(v => 
-                                `<span class="variant-tag">${v.type}: ${v.value}</span>`
-                            ).join('')}
+                filteredProducts.forEach(product => {
+                    const productCard = document.createElement('div');
+                    productCard.className = 'product-card';
+                    
+                    // Формируем варианты (ПОДКАТЕГОРИИ - вкусы, цвета)
+                    let variantsHTML = '';
+                    if (product.variants && product.variants.length > 0) {
+                        // Проверяем структуру вариантов
+                        console.log('Варианты для товара:', product.name, product.variants);
+                        
+                        variantsHTML = `
+                            <div class="product-variants">
+                                ${product.variants.map(v => 
+                                    `<span class="variant-tag">${v.type}: ${v.value}</span>`
+                                ).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    // Кнопки админа
+                    let adminControlsHTML = '';
+                    if (isAdmin) {
+                        adminControlsHTML = `
+                            <div class="product-admin-controls">
+                                <button class="admin-control-btn edit-btn" onclick="editProduct('${product.id}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="admin-control-btn delete-btn" onclick="deleteProduct('${product.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    }
+                    
+                    // Изображение из Base64
+                    const imageSrc = product.imageData ? 
+                        `data:image/jpeg;base64,${product.imageData}` : 
+                        'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
+                    
+                    // Описание (если есть)
+                    let descriptionHTML = '';
+                    if (product.description && product.description.trim() !== '') {
+                        descriptionHTML = `<div class="product-description">${product.description}</div>`;
+                    }
+                    
+                    productCard.innerHTML = `
+                        ${adminControlsHTML}
+                        <img src="${imageSrc}" alt="${product.name}" class="product-image">
+                        <div class="product-info">
+                            <h3 class="product-title">${product.name}</h3>
+                            <div class="product-price">${product.price.toLocaleString()} ₽</div>
+                            ${variantsHTML}
+                            ${descriptionHTML}
                         </div>
                     `;
-                }
-                
-                // Кнопки админа
-                let adminControlsHTML = '';
-                if (isAdmin) {
-                    adminControlsHTML = `
-                        <div class="product-admin-controls">
-                            <button class="admin-control-btn edit-btn" onclick="editProduct('${product.id}')">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="admin-control-btn delete-btn" onclick="deleteProduct('${product.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                }
-                
-                // Изображение из Base64
-                const imageSrc = product.imageData ? 
-                    `data:image/jpeg;base64,${product.imageData}` : 
-                    'https://images.unsplash.com/photo-1571330735066-03aaa9429d89?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80';
-                
-                // Описание (если есть)
-                let descriptionHTML = '';
-                if (product.description && product.description.trim() !== '') {
-                    descriptionHTML = `<div class="product-description">${product.description}</div>`;
-                }
-                
-                productCard.innerHTML = `
-                    ${adminControlsHTML}
-                    <img src="${imageSrc}" alt="${product.name}" class="product-image">
-                    <div class="product-info">
-                        <h3 class="product-title">${product.name}</h3>
-                        <div class="product-price">${product.price.toLocaleString()} ₽</div>
-                        ${variantsHTML}
-                        ${descriptionHTML}
-                    </div>
-                `;
-                
-                productsGrid.appendChild(productCard);
-            });
+                    
+                    productsGrid.appendChild(productCard);
+                });
+            }
+            
             // Отображение вариантов в форме
             function renderVariants() {
                 variantsContainer.innerHTML = '';
@@ -922,9 +926,14 @@
                 variants.push({ type, value });
                 renderVariants();
                 
+                // Очищаем поля
                 variantType.value = '';
                 variantValue.value = '';
+                
+                // Фокусируемся обратно на поле типа
                 variantType.focus();
+                
+                showNotification('Вариант добавлен!');
             });
             
             // Загрузка изображения как Base64
@@ -1108,7 +1117,7 @@
                     price,
                     category,
                     imageData: currentImageData, // Сохраняем Base64
-                    variants, // Сохраняем подкатегории (вкусы, цвета)
+                    variants: [...variants], // Сохраняем подкатегории (вкусы, цвета) как копию массива
                     updatedAt: Date.now()
                 };
                 
